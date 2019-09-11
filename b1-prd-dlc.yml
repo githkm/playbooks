@@ -1,0 +1,56 @@
+# b1 dlc 
+- hosts: all
+  remote_user: opsuser
+  become: yes
+  gather_facts: no
+  vars:
+    dirs1: "/data/new_www/android"
+    flushdir_cdn1: "http://cdn.playrr.me/android/"
+    dirs2: "/data/new_www/android_version"
+    flushdir_cdn2: "http://cdn.playrr.me/android_version/"
+  tasks:
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+  - name: 获取当前日期
+    shell: "date +%Y%m%d"
+    register: date
+    tags: getdate
+
+  - name: "SVN更新{{ dirs1 }}"
+    shell: |
+      cd {{dirs1}}
+      svn update
+    tags: svnandroid
+
+  - name: "CDN刷新目录：{{flushdir_cdn1}}"
+    shell: "/root/.pyenv/versions/3.6.3/bin/python /data/auto_flush_cdn_dir.py --dir {{flushdir_cdn1}}"
+    tags: flushandroid
+
+  - name: "等待目录{{flushdir_cdn1}} CDN 刷新结束"
+    shell: "/root/.pyenv/versions/3.6.3/bin/python /data/auto_flush_cdn_dir.py --log {{date.stdout}} {{flushdir_cdn1}}"
+    register: result
+    until: result.stdout.find('2') != -1
+    retries: 99999
+    delay: 10
+    tags: getandroidresult
+
+  - name: "SVN更新{{dirs2}}"
+    shell: |
+      cd {{dirs2}}
+      svn update
+    tags: svnversion
+
+  - name: "CDN刷新目录：{{flushdir_cdn2}}"
+    shell: "/root/.pyenv/versions/3.6.3/bin/python /data/auto_flush_cdn_dir.py --dir {{flushdir_cdn2}}"
+    tags: flushversion
+
+  - name: "等待目录{{flushdir_cdn2}} CDN 刷新结束"
+    shell: "/root/.pyenv/versions/3.6.3/bin/python /data/auto_flush_cdn_dir.py --log {{date.stdout}} {{flushdir_cdn2}}"
+    register: result
+    until: result.stdout.find('2') != -1
+    retries: 99999
+    delay: 10
+    tags: getversionresult

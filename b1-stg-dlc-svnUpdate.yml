@@ -1,0 +1,25 @@
+# b1 stg dlc svn update
+- hosts: all
+  remote_user: opsuser
+  become: yes
+  gather_facts: no
+  vars:
+    dirs:
+      - /usr/share/nginx/b1/android/ 
+      - /usr/share/nginx/b1/android_version/
+      - /usr/share/nginx/b1/webgl/
+      - /usr/share/nginx/b1/webgl_version/
+  tasks:
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+  - name: SVN更新
+    shell: |
+      cd {{item}}
+      svn update
+    loop: "{{dirs}}"
+    tags: svnandroid
+
+ 

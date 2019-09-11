@@ -1,0 +1,139 @@
+# B1 逻辑服部署
+- hosts: all
+  remote_user: opsuser
+  become: yes
+  gather_facts: no
+  vars:
+    - ansible_python_interpreter: /root/.pyenv/versions/3.6.3/bin/python
+    - gitrepo: git@github.com:PitayaDEV/B1Server_gs.git
+    - registry: registry.pitayacd.com:5000
+    - imagename: registry.pitayacd.com:5000/game_debian:2.0
+    - gitdir: /data/b1_gs_s
+    - gw_num: 1
+    - gwinport: 9090  ### hint to input
+    - id: 1
+    - gmurl: http://150.109.198.143/gameadmin
+    - gw_public_ip: 150.109.194.67
+    - om_first_open_time: 1559196372
+    - om_start_date: 1559196372
+    - om_end_date: 1559196372
+    - om_server_name: stg_1
+    - om_wlist: 
+    - port1: 8700
+    - port2: 8800
+    - mysql_ip: 10.150.3.12
+    - mysql_root_pwd: Bdbhs2kvk99
+  tasks:
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+  - name: 检测当前部署容器：b1_gs_s{{id}}是否已存在
+    shell: |
+      docker ps -a | grep -w b1_gs_s{{id}}
+    register: judge_result
+    ignore_errors: yes
+    tags: test_exist
+
+  - name: b1_gs_s{{id}}已存在，任务退出
+    fail:
+      msg: "b1_gs_s{{id}} 已存在，任务退出"
+    when: judge_result is success
+    tags: test_exist
+
+  - name: Docker镜像仓库 {{registry}} 登录
+    docker_login:
+       registry_url: "{{registry}}"
+       username: pitaya
+       password: PitaYa4108
+       reauthorize: yes
+    tags: dockerop
+
+  - name: 拉取镜像
+    docker_image:
+      name: "{{imagename}}"
+    register: res
+    tags: dockerop
+
+  - name: 拷贝私钥
+    copy:
+      src: ./id_rsa
+      dest: /root/id_rsa
+      mode: 0400
+    tags: gitop
+
+  - name: 删除多余文件或目录
+    file:
+      path: "{{gitdir}}{{id}}"
+      state: absent
+    tags: gitop
+
+  - name: github仓库拉取资源
+    git:
+      repo: "{{gitrepo}}"
+      dest: "{{gitdir}}{{id}}"
+      key_file: /root/id_rsa
+      ssh_opts: "-o StrictHostKeyChecking=no"
+      force: yes
+    tags: gitop
+
+  - name: 删除私钥
+    file:
+      path: /root/id_rsa
+      state: absent
+    tags: gitop,delkey
+
+  - name: 创建需要使用的子目录和文件
+    shell: "mkdir -p {{gitdir}}{{id}}/zone/zone_data/zone_{{id}}/{redis,ssdb,ngamelog}"
+    register: res
+    tags: shell
+
+  - name: 配置om_config.xml
+    template:
+      src: ./file/om_config.j2
+      dest: "{{gitdir}}{{id}}/zone/public/config/om_config.xml"
+    tags: configxml
+
+  - name: 配置web_config.xml 和 scene_config.xml
+    template:
+      src: ./file/{{item}}.j2
+      dest: "{{gitdir}}{{id}}/zone/public/game/config/{{item}}.xml"
+    loop:
+      - web_config
+      - scene_config
+    tags: configxml
+
+  - name: 创建容器网络b1_net
+    docker_network:
+      name: b1_net
+      driver: bridge
+    tags: b1net
+
+  - name: 创建容器b1_gs_s{{id}}
+    docker_container:
+      name: "b1_gs_s{{id}}"
+      image: "{{imagename}}"
+      networks:
+        - name: b1_net
+      pull: no 
+      volumes: 
+        - "{{gitdir}}{{id}}/zone/public:/data/public"
+        - "{{gitdir}}{{id}}/zone/zone_data/zone_{{id}}/redis:/data/redis"
+        - "{{gitdir}}{{id}}/zone/zone_data/zone_{{id}}/ssdb:/data/ssdb"
+        - "{{gitdir}}{{id}}/zone/zone_data/zone_{{id}}/ngamelog:/data/public/ngamelog"
+        - "/etc/localtime:/etc/localtime:ro"
+      published_ports: 
+        - "{{port1 + id}}:{{port2 + id}}"
+      entrypoint: ["bash","/data/public/start_game.sh"]
+      state: started
+      tty: yes
+      # restart_policy: on-failure
+      restart_policy: always
+      #restart_policy: always
+    tags: startgs
+
+  - name: 自动添加安全组规则
+    script: "./b1-deploy-create-sg-rule.py {{port1 + id}} b1_gs_s{{id}}"
+    tags: addsgrule
+

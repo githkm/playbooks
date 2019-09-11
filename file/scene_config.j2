@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<config>
+  <!--服务器ID，由数据中心分配 -->
+  <sid>{{id}}</sid> 
+  <exid>1,2,3,4,5</exid>
+  <log>
+    <config>../config/scene_log.xml</config>
+  </log>
+  <pprof state="false"> <!-- 服务器性能监控 -->
+    <port>:9011</port> <!-- 查看性能的端口 -->
+  </pprof>
+  <client>
+    <server name="gateway">{{gw_public_ip}}:9000</server> <!-- 服务器端地址 -->
+    <property name="MaxReadMsgSize">65536</property>  <!-- 接收包的最大长度 -->
+    <property name="ReadMsgQueueSize">10240</property>  <!-- 接收包的缓存队列长度 -->
+    <property name="ReadTimeOut">600</property>  <!-- 接收包的超时(second) -->
+    <property name="MaxWriteMsgSize">65536</property> <!-- 发送包的最大长度 -->
+    <property name="WriteMsgQueueSize">10240</property> <!-- 发送包的缓存队列长度  -->
+    <property name="WriteTimeOut">600</property>  <!-- 发送包的超时(second) -->
+  </client>
+  <client>
+    <server name="record">127.0.0.1:9020</server> <!-- 服务器端地址 -->
+    <property name="MaxReadMsgSize">131072</property>  <!-- 接收包的最大长度 -->
+    <property name="ReadMsgQueueSize">10240</property>  <!-- 接收包的缓存队列长度 -->
+    <property name="ReadTimeOut">600</property>  <!-- 接收包的超时(second) -->
+    <property name="MaxWriteMsgSize">65536</property> <!-- 发送包的最大长度 -->
+    <property name="WriteMsgQueueSize">10240</property> <!-- 发送包的缓存队列长度  -->
+    <property name="WriteTimeOut">600</property>  <!-- 发送包的超时(second) -->
+  </client>
+  <client>
+    <server name="web">127.0.0.1:5017</server> <!-- 服务器端地址 -->
+    <property name="MaxReadMsgSize">65536</property>  <!-- 接收包的最大长度 -->
+    <property name="ReadMsgQueueSize">1024</property>  <!-- 接收包的缓存队列长度 -->
+    <property name="ReadTimeOut">600</property>  <!-- 接收包的超时(second) -->
+    <property name="MaxWriteMsgSize">65536</property> <!-- 发送包的最大长度 -->
+    <property name="WriteMsgQueueSize">1024</property> <!-- 发送包的缓存队列长度  -->
+    <property name="WriteTimeOut">600</property>  <!-- 发送包的超时(second) -->
+  </client>
+  <client>
+    <server name="cross">127.0.0.1:7777</server> <!-- 服务器端地址 -->
+    <property name="MaxReadMsgSize">65536</property>  <!-- 接收包的最大长度 -->
+    <property name="ReadMsgQueueSize">1024</property>  <!-- 接收包的缓存队列长度 -->
+    <property name="ReadTimeOut">600</property>  <!-- 接收包的超时(second) -->
+    <property name="MaxWriteMsgSize">65536</property> <!-- 发送包的最大长度 -->
+    <property name="WriteMsgQueueSize">1024</property> <!-- 发送包的缓存队列长度  -->
+    <property name="WriteTimeOut">600</property>  <!-- 发送包的超时(second) -->
+  </client>
+  <client>
+    <server name="slave">127.0.0.1:5555</server> <!-- 服务器端地址 -->
+    <property name="MaxReadMsgSize">65536</property>  <!-- 接收包的最大长度 -->
+    <property name="ReadMsgQueueSize">1024</property>  <!-- 接收包的缓存队列长度 -->
+    <property name="ReadTimeOut">600</property>  <!-- 接收包的超时(second) -->
+    <property name="MaxWriteMsgSize">65536</property> <!-- 发送包的最大长度 -->
+    <property name="WriteMsgQueueSize">1024</property> <!-- 发送包的缓存队列长度  -->
+    <property name="WriteTimeOut">600</property>  <!-- 发送包的超时(second) -->
+  </client>
+  <client>
+    <server name="account">127.0.0.1:32768</server> <!-- 服务器端地址 -->
+    <property name="MaxReadMsgSize">65536</property>  <!-- 接收包的最大长度 -->
+    <property name="ReadMsgQueueSize">1024</property>  <!-- 接收包的缓存队列长度 -->
+    <property name="ReadTimeOut">600</property>  <!-- 接收包的超时(second) -->
+    <property name="MaxWriteMsgSize">65536</property> <!-- 发送包的最大长度 -->
+    <property name="WriteMsgQueueSize">1024</property> <!-- 发送包的缓存队列长度  -->
+    <property name="WriteTimeOut">600</property>  <!-- 发送包的超时(second) -->
+  </client>
+</config>

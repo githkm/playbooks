@@ -1,0 +1,24 @@
+- hosts: all
+  remote_user: opsuser
+  gather_facts: no
+  vars:
+    t1: c
+  tasks:
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+  # - name: ping
+  #   ping: 
+  #   tags: ping
+
+  - debug:
+      var: t1
+
+  # - name: 
+  #   shell: "sleep 120"
+
+  # - debug:
+  #     var: ansible_limit
+  #   tags: print

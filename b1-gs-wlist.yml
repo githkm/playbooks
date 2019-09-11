@@ -1,0 +1,29 @@
+# b1 gs 白名单添加
+- hosts: all
+  remote_user: opsuser
+  become: yes
+  gather_facts: no
+  vars:
+    - gs_id: 1
+    - white_list: 114.88.126.93
+  tasks:
+  - fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+  - name: connection test
+    debug:
+      msg: "121"
+    tags: test
+
+  - name: modify w_list
+    lineinfile:
+      path: /data/b1_gs_s{{gs_id}}/zone/public/config/om_config.xml
+      regexp: "      <wlist>"
+      line: "      <wlist>{{white_list}}</wlist>"
+      backrefs: yes
+
+  - name: restart gs{{gs_id}} container
+    shell: |
+      docker restart b1_gs_s{{gs_id}}
+      

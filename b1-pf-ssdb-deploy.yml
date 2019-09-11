@@ -1,0 +1,57 @@
+# b1 pf ssdb部署
+- hosts: all
+  remote_user: opsuser
+  become: yes
+  gather_facts: no
+  vars:
+    - ansible_python_interpreter: /root/.pyenv/versions/3.6.3/bin/python
+    - registry: registry.pitayacd.com:5000
+    - imagename: registry.pitayacd.com:5000/pf_ssdb:2.0
+
+  tasks:
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+  - name: Docker镜像仓库 {{registry}} 登录
+    docker_login:
+       registry_url: "{{registry}}"
+       username: pitaya
+       password: PitaYa4108
+       reauthorize: yes
+    tags: dockerop
+
+  - name: 拉取镜像
+    docker_image:
+      name: "{{imagename}}"
+    tags: dockerop
+
+  - name: 获取当前实例内网IP
+    shell: "ifconfig |grep -A 1 eth0|grep inet|awk '{print $2}'"
+    register: getip
+    tags: getip
+
+  - name: 创建容器网络b1_net
+    docker_network:
+      name: b1_net
+      driver: bridge
+    tags: b1net
+
+  - name: 创建容器platform_ssdb
+    docker_container:
+      name: "platform_ssdb"
+      image: "{{imagename}}"
+      networks:
+        - name: b1_net
+      pull: no 
+      volumes: 
+        #- "/data/pf_ssdb:/data"
+        - "/data/pf_ssdb:/ssdb/var"
+        - "/etc/localtime:/etc/localtime:ro"
+      published_ports: 
+        - "{{getip.stdout}}:8888:8888"
+      state: started
+      tty: yes
+      restart_policy: on-failure
+    tags: startdb

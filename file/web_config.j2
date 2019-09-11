@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<config>
+  <log>
+    <config>../config/web_log.xml</config>
+  </log>
+  <http>:{{ port2 + id  }}</http>
+  <gmurl>{{ gmurl }}</gmurl>
+  <server>
+    <port>:5017</port> <!-- 监听的端口 -->
+    <property name="MaxReadMsgSize">65536</property>  <!-- 接收包的最大长度 -->
+    <property name="ReadMsgQueueSize">1024</property>  <!-- 接收包的缓存队列长度 -->
+    <property name="ReadTimeOut">600</property>  <!-- 接收包的超时(second) -->
+    <property name="MaxWriteMsgSize">65536</property> <!-- 发送包的最大长度 -->
+    <property name="WriteMsgQueueSize">1024</property> <!-- 发送包的缓存队列长度  -->
+    <property name="WriteTimeOut">600</property>  <!-- 发送包的超时(second) -->
+  </server>
+  <ssdb>
+    <ip>127.0.0.1</ip>
+    <port>8888</port>
+  </ssdb>
+  <mysql>
+    <!-- 固定16个库 -->
+    <database>
+      <!-- 连接到 MySQL 的 IP地址 -->
+      <host>{{mysql_ip}}</host>
+      <!-- 连接到 MySQL 的 端口号 -->
+      <port>3306</port>
+      <!-- 连接到 MySQL 用的的用户名 -->
+      <user>root</user>
+      <!-- 连接到 MySQL 用的的password -->
+      <password>{{mysql_root_pwd}}</password>
+      <name>gamedb</name>
+      <size>2</size>
+    </database>
+  </mysql>
+</config>

@@ -1,0 +1,114 @@
+# b1 gw部署
+- hosts: all
+  remote_user: opsuser
+  become: yes
+  gather_facts: no
+  vars:
+    - ansible_python_interpreter: /root/.pyenv/versions/3.6.3/bin/python
+    - gitrepo: git@github.com:PitayaDEV/B1Server_gw.git
+    - registry: registry.pitayacd.com:5000
+    - imagename: registry.pitayacd.com:5000/game_debian:2.0
+    - gitdir: /data/b1_gw_
+    - gw_num: 1
+    ### there port changable
+    - gwinport: 9090
+    - gwoutport: 9120
+    - gwebport: 9091
+    - ports:
+      - "{{gwinport}}"
+      - "{{gwoutport}}"
+      - "{{gwebport}}"
+    ###
+  tasks:
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+  - name: 检测容器b1_gw_{{gw_num}是否存在
+    shell: |
+      docker ps -a | grep -w b1_gw_{{gw_num}}
+    register: judge_result
+    ignore_errors: yes
+    tags: test_exist
+  
+  - name: b1_gw_{{gw_num}}存在，退出任务
+    fail:
+      msg: "b1_gw_{{gw_num}}存在，退出任务"
+    when: judge_result is success
+    tags: test_exist
+
+  - name: Docker镜像仓库 {{registry}} 登录
+    docker_login:
+       registry_url: "{{registry}}"
+       username: pitaya
+       password: PitaYa4108
+       reauthorize: yes
+    tags: dockerop
+
+  - name: 拉取镜像
+    docker_image:
+      name: "{{imagename}}"
+    tags: dockerop
+
+  - name: 复制私钥
+    copy:
+      src: ./id_rsa
+      dest: /root/id_rsa
+      mode: 0400
+    tags: gitop
+      
+  - name: 删除多余文件或目录
+    file: 
+      path: "{{gitdir}}{{gw_num}}"
+      state: absent
+    tags: gitop
+
+  - name: 拉取git资源
+    git:
+      repo: "{{gitrepo}}"
+      dest: "{{gitdir}}{{gw_num}}"
+      key_file: /root/id_rsa
+      ssh_opts: "-o StrictHostKeyChecking=no"
+      force: yes
+    tags: gitop
+
+  - name: 删除私钥
+    file:
+     path: /root/id_rsa
+     state: absent
+    tags: gitop,delkey
+
+  - name: 创建容器网络b1_net
+    docker_network:
+      name: b1_net
+      driver: bridge
+    tags: b1net
+
+  - name: 创建容器b1_gw_{{gw_num}}
+    docker_container:
+      name: "b1_gw_{{gw_num}}"
+      image: "{{imagename}}"
+      networks:
+        - name: b1_net
+      pull: no 
+      volumes: 
+        - "{{gitdir}}{{gw_num}}/gateway:/data"
+        - "/etc/localtime:/etc/localtime:ro"
+      published_ports: 
+        - "{{gwinport}}:8090"  #in
+        - "{{gwoutport}}:8120" #out
+        - "{{gwebport}}:8091" #web
+      entrypoint: ["bash","/data/start.sh"]
+      state: started
+      tty: yes
+      restart_policy: always
+    tags: startgw
+  
+  - name: 自动添加安全组规则
+    script: "./b1-deploy-create-sg-rule.py {{item}} b1_gw_{{gw_num}}"
+    loop: "{{ports}}"
+    tags: addsgrule
+    
+        
+  

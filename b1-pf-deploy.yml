@@ -1,0 +1,100 @@
+# b1 pf 部署
+- hosts: all
+  remote_user: opsuser
+  become: yes
+  gather_facts: yes
+  vars:
+    - ansible_python_interpreter: /root/.pyenv/versions/3.6.3/bin/python
+    - gitrepo: git@github.com:PitayaDEV/B1Server_pf.git
+    - registry: registry.pitayacd.com:5000
+    - imagename: registry.pitayacd.com:5000/game_debian:2.0
+    - gitdir: /data/pf
+    - platform_port: 80
+    - mysql_ip: 10.150.3.10
+    - mysql_root_pwd: T+loxz2FdaER
+    - platform_wlist: 116.226.76.134
+  tasks:
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+  - name: 检测当前部署容器：b1_pf是否已存在
+    shell: |
+      docker ps -a | grep -w b1_pf
+    register: judge_result
+    ignore_errors: yes
+    tags: test_exist
+
+  - name: b1_pf已存在，任务退
+    fail:
+      msg: "b1_pf已存在，任务退"
+    when: judge_result is success
+    tags: test_exist
+
+  - name: Docker镜像仓库 {{registry}} 登录
+    docker_login:
+       registry_url: "{{registry}}"
+       username: pitaya
+       password: PitaYa4108
+       reauthorize: yes
+    tags: dockerop
+
+  - name: 拉取镜像
+    docker_image:
+      name: "{{imagename}}"
+    tags: dockerop
+
+  - name: 复制私钥
+    copy:
+      src: ./id_rsa
+      dest: /root/id_rsa
+      mode: 0400
+    tags: gitop
+
+  - name: 拉取git数据
+    git:
+      repo: "{{gitrepo}}"
+      dest: "{{gitdir}}"
+      key_file: /root/id_rsa
+      ssh_opts: "-o StrictHostKeyChecking=no"
+      force: yes
+    tags: gitop
+
+  - name: 删除私钥
+    file:
+      path: /root/id_rsa
+      state: absent    
+    tags: gitop,delkey
+
+  - name: 配置 platform config 
+    template: 
+      src: ./file/platform_config.j2
+      dest: "{{gitdir}}/platform/config/platform_config.xml"
+    tags: pfconfig
+
+  - name: 创建容器网络b1_net
+    docker_network:
+      name: b1_net
+      driver: bridge
+    tags: b1net
+
+  - name: 创建b1_pf容器
+    docker_container:
+      name: b1_pf
+      image: "{{imagename}}"
+      networks:
+        - name: b1_net
+      pull: no 
+      volumes: 
+        - "{{gitdir}}/platform:/data"
+        - "/etc/localtime:/etc/localtime:ro"
+      published_ports: 
+        - "{{platform_port}}:80"
+        - "443:443"
+      entrypoint: ["bash","/data/start_platform.sh"]
+      state: started
+      tty: yes
+      restart_policy: always
+    register: res
+    tags: startpf

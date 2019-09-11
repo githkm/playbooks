@@ -1,0 +1,179 @@
+# b1 停服更新
+- hosts: all
+  remote_user: opsuser
+  become: yes
+  gather_facts: no
+  vars:
+    - operate_obj: gw
+    - pfop: false
+  tasks:
+# 公用
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+  - name: 拷贝私钥
+    copy:
+      src: ./id_rsa
+      dest: /root/.ssh/id_rsa
+      mode: 0400
+
+# pf、gs公用 
+  - name: 实例公网IP获取
+    uri:
+      url: "http://metadata.tencentyun.com/meta-data/public-ipv4"
+      return_content: yes
+    register: instance_public_ip
+    when: operate_obj == "pf" or operate_obj == "gs" 
+
+# pf
+  - name: 逻辑服状态修改，Reload.
+    block: 
+      - name: 逻辑服platform状态修改
+        shell: |
+          sed -i "/<status>2</s#2#4#g" /data/pf/platform/config/platform_config.xml
+      - name: platform Reload 逻辑服信息
+        uri:
+          url: "http://{{instance_public_ip.content}}/reload?key=yang765"
+    rescue:
+      - fail:
+          msg: platform_config.xml修改失败 或 Reload失败
+    when: operate_obj == "pf" 
+# pf、gs公用
+  - name: pf或gs更新操作之前获取日期，时间，主机前缀.
+    block: 
+      - name: 获取主机名前缀
+        shell: "hostname |cut -d'.' -f1"
+        register: hname
+      - name: 获取当前日期
+        shell: "date +%Y-%m-%d"
+        register: d2
+      - name: 获取当前时间
+        shell: "date +%Y-%m-%d-%H-%M"
+        register: d1
+      - name: 拷贝API调用认证文件
+        copy:
+          src: ./b1-cos.conf
+          dest: /root/.cos.conf
+          mode: 0644
+    rescue:
+      - fail:
+          msg: 获取时间 或 日期 或 主机名前缀失败
+    when: (operate_obj == "pf" and pfop) or operate_obj == "gs"
+# pf    
+  - name: 如pf需停服更新：停止pf容器，备份pf ssdb数据，拉取pf git资源，启动pf容器
+    shell: |
+      # 停容器
+      docker stop b1_pf
+      # 备份ssdb资源
+      cd /data
+      tar cvf ./{{hname.stdout}}-{{d1.stdout}}-pf_ssdb.tar ./pf_ssdb
+      /root/.pyenv/versions/3.6.3/bin/coscmd upload /data/{{hname.stdout}}-{{d1.stdout}}-pf_ssdb.tar /{{instance_public_ip.content}}/{{d2.stdout}}/ 
+      # 创建ssh-agent
+      eval `ssh-agent`
+      ssh-add
+      # pf git pull
+      cd /data/pf
+      git pull
+      # 启动容器
+      docker start b1_pf
+    when: operate_obj == "pf" and pfop
+# gw gs
+  - name: 获取gw，gs容器名及停止容器
+    block:
+    - name: 获取所有{{operate_obj}}容器名
+      shell: "docker ps | grep {{operate_obj}} | awk '{print $NF}'"
+      register: container_names
+    - name: 停止{{operate_obj}}所有容器
+      shell: "docker stop {{item}}"
+      loop: "{{container_names.stdout_lines}}"
+    rescue:
+      - fail:
+          msg: 获取gw，gs容器名及停止容器失败
+    when: operate_obj == "gw" or operate_obj == "gs"
+
+# gw
+  # 如果是gw，gw容器停止后睡5分钟让gs的数据落地
+  - name: GW 睡1分钟确保GS的ssdb和redis数据落地，gw git 拉取数据
+    block:        
+    - name: GW git 拉取数据
+      shell: |
+        # 创建ssh-agent
+        eval `ssh-agent`
+        ssh-add
+        # gw git pull
+        cd /data/{{item}}
+        git pull      
+      loop: "{{container_names.stdout_lines}}"
+    - name: GW 睡1分钟确保GS的ssdb和redis数据落地
+      shell: "sleep 60"      
+    rescue:
+      - fail:
+          msg: gw git获取新数据失败
+    when: operate_obj == "gw"
+
+# gs
+  # 如果是gs，将redis & ssdb数据打为tar包，保存到各逻辑服目录中
+  # 安装腾讯云coscmd工具，并使用coscmd工具上传redis & ssdb数据至bucket   
+  - name: 创建本次GS ssdb、redis备份切上传至备份至对象存储，执行GS git pull操作
+    shell: |
+      # 备份gs的ssdb和redis
+      cd /data
+      tar cvf ./{{item}}/zone/{{item}}-{{d1.stdout}}.tar ./{{item}}/zone/zone_data --exclude=./{{item}}/zone/zone_data/*/ngamelog 
+      # 上传本次ssdb和redis备份至bucket
+      /root/.pyenv/shims/coscmd upload /data/{{item}}/zone/{{item}}-{{d1.stdout}}.tar /{{instance_public_ip.content}}/{{d2.stdout}}/{{item}}/
+      # 创建ssh-agent
+      eval `ssh-agent`
+      ssh-add
+      # gs git pull
+      cd /data/{{item}}
+      git pull
+    loop: "{{container_names.stdout_lines}}"
+    when: operate_obj == "gs"
+
+  - name: 删除私钥
+    file:
+      path: /root/.ssh/id_rsa
+      state: absent
+
+  - name: 进行gs操作是获取gw容器名并重启所有gw容器和gs容器
+    block:
+    - name: 获取所有gw容器名
+      shell: "docker ps -a |grep gw |awk '{print $NF}'"
+      register: all_gw_names
+
+    - name: 重启所有gw容器
+      shell: "docker start {{item}}"
+      loop: "{{all_gw_names.stdout_lines}}"
+
+    - name: 启动所有gs容器
+      shell: "docker start {{item}}"
+      loop: "{{container_names.stdout_lines}}"
+    rescue:
+      - fail:
+          msg: 获取gw，启动所有gw、gs容器失败
+    when: operate_obj == "gs"
+
+  # 等待QA测试完毕后，取消pf上逻辑服维护状态
+  - name: 最后一步，取消逻辑服维护状态，Reload.
+    block: 
+      - name: 最后一步：实例公网IP获取
+        uri:
+          url: "http://metadata.tencentyun.com/meta-data/public-ipv4"
+          return_content: yes
+        register: instance_public_ip
+      - name: 最后一步：取消逻辑服platform维护状态
+        shell: |
+          sed -i "/<status>4</s#4#2#g" /data/pf/platform/config/platform_config.xml
+      - name: 最后一步：platform Reload 逻辑服信息
+        uri:
+          url: "http://{{instance_public_ip.content}}/reload?key=yang765"
+    rescue:
+      - fail:
+          msg: platform_config.xml修改失败 或 Reload失败
+    when: operate_obj == "pf" 
+    tags: finish_update
+
+
+
+

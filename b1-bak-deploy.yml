@@ -1,0 +1,41 @@
+# pf/gs redis&ssdb 备份脚本拷贝及pf/gs实例添加备份计划任务
+- hosts: all
+  remote_user: opsuser
+  become: yes
+  gather_facts: yes
+  vars:
+    - ansible_python_interpreter: /root/.pyenv/versions/3.6.3/bin/python
+  tasks:
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+  - name: 拷贝备份脚本至目标机器
+    copy:
+      src: ./b1-cron-backup.sh
+      dest: /data
+      mode: u+x,g+x,o+x
+    
+  - name: 拷贝cos.conf文件至目标机器
+    copy:
+      src: ./b1-cos.conf
+      dest: /root/.cos.conf
+      mode: 0644
+
+  - name: 配置pf Crontab
+    cron:
+      name: "pf(ssdb) backup"
+      minute: "5"
+      hour: "*"
+      job: "bash /data/b1-cron-backup.sh"
+    when: "'pf' in ansible_nodename"
+
+  - name: 配置gs Crontab
+    cron:
+      name: "gs(ssdb&redis) backup"
+      minute: "5"
+      hour: "1"
+      day: "*"
+      job: "bash /data/b1-cron-backup.sh"
+    when: "'gs' in ansible_nodename"

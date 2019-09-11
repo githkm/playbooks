@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<config>
+  <log>
+    <config>../config/platform_log.xml</config>
+  </log>
+  <http>:80</http>
+  <https></https>
+  <ssdb>
+    <ip>127.0.0.1</ip>
+    <port>8888</port>
+  </ssdb>
+  <mysql>
+    <ip>{{mysql_ip}}</ip>
+    <port>3306</port>
+    <user>root</user>
+    <password>{{mysql_root_pwd}}</password>
+    <dbname>gamedb</dbname>
+  </mysql>
+  <upgrade_version>
+      <whitelist_ip>{{platform_wlist}}</whitelist_ip>
+    
+</upgrade_version>
+  <list>
+
+  </list>
+</config>

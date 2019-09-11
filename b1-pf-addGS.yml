@@ -1,0 +1,67 @@
+# b1 pf 添加逻辑服信息
+- hosts: all
+  remote_user: opsuser
+  become: yes
+  gather_facts: no
+  vars:
+    - ansible_python_interpreter: /root/.pyenv/versions/3.6.3/bin/python
+    - platform_port: 80
+    - gitdir: /data/pf
+    - id: 1
+    - gw_public_ip: 124.156.209.145
+    - gwoutport: 9120
+    - gwebport: 9091
+    - om_first_open_time: 1559268000
+    - om_server_name: S1 メアリィ
+    - port1: 8700
+    - mysql_ip: 10.150.3.10
+    - mysql_root_pwd: T+loxz2FdaER
+  tasks:
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+  - name: 获取当前机器公网IP
+    uri:
+      url: "http://metadata.tencentyun.com/meta-data/public-ipv4"
+      return_content: yes
+    register: instance_public_ip
+    tags: getip
+
+  - name: platform_config.xml 文件添加新逻辑服信息
+    blockinfile:
+      #backup: yes
+      path: "{{gitdir}}/platform/config/platform_config.xml"
+      marker: "#id:{{id}}"
+      block: |
+          <server>
+           <name>{{om_server_name}}</name>
+           <id>{{id}}</id>
+           <old_id>{{id}}</old_id>
+           <login>http://{{instance_public_ip.content}}:{{platform_port}}/api</login>
+           <status>2</status>
+           <opid>35</opid>
+           <gateway>{{gw_public_ip}}</gateway>
+           <port>{{gwoutport}}</port>
+           <web_port>{{ port1 + id }}</web_port>
+           <websocket_port>{{gwebport}}</websocket_port>
+           <key>7lmoyXcUZy4dbpGy</key>
+           <start>{{om_first_open_time}}</start>
+           <newserver_on>1</newserver_on>
+          </server>
+      insertbefore: "</list>"
+    register: res
+    tags: addgs
+    
+  - name: reload 逻辑服信息
+    uri:
+      url: "https://{{instance_public_ip.content}}:{{platform_port}}/reload?key=yang765"
+    tags: reload
+    when: "'b1-stg' not in ansible_nodename"
+
+  - name: reload 逻辑服信息
+    uri:
+      url: "http://{{instance_public_ip.content}}:{{platform_port}}/reload?key=yang765"
+    tags: reload
+    when: "'b1-stg' in ansible_nodename"

@@ -1,0 +1,16 @@
+- hosts: all
+  remote_user: opsuser
+  become: yes
+  gather_facts: no
+  vars:
+    - operate_obj: gw
+  tasks:
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+  - name: 获取所有{{operate_obj}}容器名
+    shell: "docker ps | grep {{operate_obj}} | awk '{print $NF}'"
+    register: container_names
+    tags: get_obj_names
