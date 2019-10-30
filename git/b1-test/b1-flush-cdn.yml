@@ -1,0 +1,79 @@
+# b1 dlc 
+- hosts: all
+  remote_user: opsuser
+  become: yes
+  gather_facts: no
+  vars:
+    dirs: 
+      - "/data/new_www/android"
+      - "/data/new_www/androidr"
+    cdns: 
+      - "http://cdn.playrr.me/android/"
+      - "http://cdn.playrr.me/androidr/"
+    dirs_version:
+      - "/data/new_www/android_version"
+      - "/data/new_www/android_version"
+    cdn_version:
+      - "http://cdn.playrr.me/android_version/"
+      - "http://cdn.playrr.me/android_version/"
+
+  tasks:
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+### svn update
+  - name: "SVN更新{{ dirs1 }}"
+    shell: |
+      cd {{item}}
+      svn update
+    loop: "{{cdns}}"
+    tags: svn_up
+
+    tags: platformsvn,platformsvn2
+
+### cnd flush
+  - name: "CDN刷新目录：{{flushdir_cdn1}} {{flushdir_cdn2}}"
+    shell: "/root/.pyenv/versions/3.6.3/bin/python /data/new_auto_flush_cdn_dir.py --dir {{item}}"
+    loop: "{{cdns}}"
+    tags: flush_cdn
+  
+  - block:
+    - name: 获取当前日期
+      shell: "date +%Y%m%d"
+      register: date
+    - name: "等待目录{{flushdir_cdn1}} {{flushdir_cdn2}} CDN 刷新结束"
+      shell: "/root/.pyenv/versions/3.6.3/bin/python /data/new_auto_flush_cdn_dir.py --log {{date.stdout}} {{flushdir_cdn1}} {{flushdir_cdn2}}"
+      register: result
+      until: result.stdout.find('Y') != -1
+      retries: 100
+      delay: 10
+    tags: check_status
+### platform cnd flush end
+
+### platform_version svn update
+  - name: "SVN更新{{ dirs3 }}"
+    shell: |
+      cd {{dirs3}}
+      svn update
+    tags: versionsvn
+
+### platform_version svn update end
+### platform_version cnd flush
+  - name: "CDN刷新目录：{{flushdir_cdn3}} {{flushdir_cdn4}}"
+    shell: "/root/.pyenv/versions/3.6.3/bin/python /data/new_auto_flush_cdn_dir.py --dir {{flushdir_cdn3}} {{flushdir_cdn4}}"
+    tags: flushversioncdn
+
+  - block:
+    - name: 获取当前日期
+      shell: "date +%Y%m%d"
+      register: date
+    - name: "等待目录{{flushdir_cdn3}} {{flushdir_cdn4}} CDN 刷新结束"
+      shell: "/root/.pyenv/versions/3.6.3/bin/python /data/new_auto_flush_cdn_dir.py --log {{date.stdout}} {{flushdir_cdn3}} {{flushdir_cdn4}}"
+      register: result
+      until: result.stdout.find('Y') != -1
+      retries: 100
+      delay: 10
+    tags: getversionresult
+### platform_version cnd flush end

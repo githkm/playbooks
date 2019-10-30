@@ -1,0 +1,38 @@
+# b1 停服更新
+- hosts: all
+  remote_user: opsuser
+  become: yes
+  gather_facts: no
+  vars:
+    - operate_obj: gs
+
+  tasks:
+  # 公用
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+  # pf、gs公用 
+  - name: 实例公网IP获取
+    uri:
+      url: "http://metadata.tencentyun.com/meta-data/public-ipv4"
+      return_content: yes
+    register: instance_public_ip
+    when: operate_obj == "gs"
+
+  - name: 获取当前日期
+    shell: "date +%F"
+    register: d2
+
+# gw gs
+  - name: 获取所有{{operate_obj}}容器名
+    shell: "docker ps | grep {{operate_obj}} | awk '{print $NF}'"
+    register: container_names
+
+  - name: 创建本次GS ssdb、redis备份切上传至备份至对象存储，执行GS git pull操作
+    shell: |
+      cd /data
+      # 上传本次ssdb和redis备份至bucket
+      /root/.pyenv/shims/coscmd upload /data/{{item}}/zone/{{item}}-{{d2}}*.tar /{{instance_public_ip.content}}/{{d2.stdout}}/{{item}}/
+    loop: "{{container_names.stdout_lines}}"

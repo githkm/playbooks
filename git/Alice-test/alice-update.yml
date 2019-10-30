@@ -1,0 +1,117 @@
+#alice hot update
+- hosts: all
+  remote_user: www
+  become: yes
+  gather_facts: no
+  vars:
+    #- ansible_python_interpreter: /root/.pyenv/versions/3.6.3/bin/python
+    - gitrepo: git@github.com:githkm/java-test.git
+    - gitdir: /home/www/alice/server
+    - file: /home/www/alice/config/api-prd.circus.ini
+
+  tasks:
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+  - name: 检测ALICE是否存在
+    shell: |
+      # ps -e |grep circusctl |grep -v color
+      systemctl status docker |grep running
+    register: result
+    ignore_errors: yes
+    tags: test_exist
+
+  - name: alice 不存在，退出任务
+    fail:
+      msg: "alice 不存在，退出任务"
+    when: result is failed
+    tags: test_exist
+
+  - name: 检测safe 状态
+    shell: |
+      grep "safe = 0" {{file}}
+    register: result_safe
+    ignore_errors: yes
+    tags: test_exist
+
+  - name: safe 不为 0
+    fail:
+      msg: safe 不为 0
+    when: result_safe is failed
+    tags: test_exist
+
+#  - name: 复制私钥
+#    copy:
+#      src: /root/id_rsa
+#      dest: /home/www/id_rsa
+#      mode: 0400
+#    tags: gitop
+#  - name: 复制私钥
+#    copy:
+#      src: /root/id_rsa
+#      dest: /tmp/id_rsa
+#      mode: 0400
+#    tags: gitop
+
+  - name: 停止程序
+    shell: |
+       #circusctl quit
+       sudo systemctl stop docker
+    ignore_errors: yes
+    tags: stop
+
+  - name: tar server
+    shell: |
+      cd /home/www/alice/
+      tar zcf ./$(hostname |cut -d'.' -f1)-$(date +%F-%H).tar.gz ./server
+
+  - name: 拉取git数据 第一次
+    git:
+      repo: "{{gitrepo}}"
+      dest: "{{gitdir}}"
+      key_file: /home/www/id_rsa
+      ssh_opts: "-o StrictHostKeyChecking=no"
+      force: yes
+    tags: gitop
+
+  - name: 拉取git数据 第二次
+    git:
+      repo: "{{gitrepo}}"
+      dest: "{{gitdir}}"
+      key_file: /home/www/id_rsa
+      ssh_opts: "-o StrictHostKeyChecking=no"
+      force: yes
+    tags: gitop
+
+  - name: 删除私钥
+    file:
+      path: /tmp/id_rsa
+      state: absent    
+    tags: gitop,delkey
+
+  - name: 启动程序
+    shell: |
+      #circusd config/api-prd.circus.ini --daemon
+      sudo systemctl start docker
+      sudo docker start b1-node01
+      sudo docker start b1-node02
+    ignore_errors: yes
+    tags: start
+
+  - name: 检查tcp连接数
+    shell: |
+      number=$(netstat -an | awk '/^tcp/ {a[$NF]++} END {for (b in a) print b,a[b]}' |grep ESTABLISHED |cut -d " " -f 2)
+      [ $number -ge 280 ] && echo "Current number is [$number] Y" || echo "N"
+    register: result
+    until: result.stdout.find("Y") != -1
+    retries: 20
+    delay: 10
+    ignore_errors: yes
+    tags: chek_tcp
+
+  - name: debug
+    debug:
+      msg: "{{result.stdout}}"
+    tags: chek_tcp

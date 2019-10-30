@@ -1,0 +1,61 @@
+# b1-gs hot update
+- hosts: all
+  remote_user: opsuser
+  become: yes
+  gather_facts: no
+  vars:
+    test: test
+
+  tasks:
+  - name: 检测LIMIT是否填写
+    fail:
+      msg: LIMIT没填！LIMIT没填！LIMIT没填！
+    when: ansible_limit is not defined
+
+  - name: 拷贝私钥
+    copy:
+      src: ./id_rsa
+      # src: /root/id_rsa
+      dest: /root/.ssh/id_rsa
+      mode: 0400
+    tags: copy_key
+
+  # git pull
+  - name: "git pull"
+    shell: |
+      gss=`docker ps -a |grep gs |awk '{print $NF}'`
+      for i in $gss;do 
+        cd /data/$i/zone/public/game/data
+        echo "Now is update [$i], curent dir [$(pwd)]" 
+        git pull
+      done
+    register: result1
+    tags: git_pull
+
+  - name: "debug"
+    debug:
+      msg: "{{result1.stdout_lines}}"
+    tags: git_pull
+
+  - name: 删除私钥
+    file:
+      path: /root/.ssh/id_rsa
+      state: absent
+    tags: del_key
+
+  # check
+  - name: "check commit id"
+    shell: |
+      gss=`docker ps -a |grep gs |awk '{print $NF}'`
+      for i in $gss;do 
+        cd /data/$i/
+        echo "check [$i] commit id:"
+        git log -n 1|egrep "commit|Date"
+      done
+    register: result2
+    tags: check_id
+
+  - name: "debug"
+    debug:
+      msg: "{{result2.stdout_lines}}"
+    tags: check_id
